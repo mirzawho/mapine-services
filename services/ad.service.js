@@ -34,7 +34,9 @@ module.exports = {
 				try {
 					const { type, city } = ctx.params;
 
-					if (type == 'any') {
+					let hasCity = city != null && city.length != 0;
+
+					if (type == 'any' && !hasCity) {
 						const ads = ad.filter((item) => item.cities.length == 0);
 
 						// random ad
@@ -53,7 +55,7 @@ module.exports = {
 						};
 					}
 
-					if (type == 'city') {
+					if (type == 'city' && hasCity) {
 						const ads = ad.filter((item) => item.cities.includes(city));
 
 						// random ad
