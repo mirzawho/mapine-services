@@ -19,17 +19,26 @@ module.exports = {
 		handshake: {
 			visibility: 'published',
 			handler(ctx) {
-				const userVersion = helper.number(ctx.meta.version ?? '0.0.0');
-				const latestVersion = helper.number(handshake.version_latest ?? '0.0.0');
-				const deprecatedVersion = helper.number(handshake.version_deprecated ?? '0.0.0');
+				try {
+					
+					const userVersion = helper.number.formatVersion(ctx.meta.version ?? '0.0.0');
+					const latestVersion = helper.number.formatVersion(handshake.version_latest ?? '0.0.0');
+					const deprecatedVersion = helper.number.formatVersion(handshake.version_deprecated ?? '0.0.0');
+	
+					return {
+						status: 200,
+						data: {
+							...handshake,
+							isDeprecated: userVersion < deprecatedVersion,
+							isUpdateAvailable: userVersion < latestVersion,
+						},
+					}
+				} catch (error) {
+					console.error(error);
 
-				return {
-					status: 200,
-					data: {
-						...handshake,
-						isDeprecated: userVersion < deprecatedVersion,
-						isLatest: userVersion >= latestVersion,
-					},
+					return {
+						status: 500
+					}
 				}
 			}
 		}
