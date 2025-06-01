@@ -23,6 +23,7 @@ app.use((req, res, next) => {
 		response: null,
 		flavor: req.headers['x-flavor'],
 		version: req.headers['x-version'],
+		app: req.headers['x-app']
 	};
 
 	if (req.headers["authorization"]) {
