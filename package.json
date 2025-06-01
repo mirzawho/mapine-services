@@ -5,7 +5,7 @@
   "description": "Moleculer microservices node template",
   "type": "commonjs",
   "scripts": {
-    "prod": "npm run db:migrate && npm run start",
+    "prod": "npm run start",
     "dev": "moleculer-runner --repl --hot services/*.service.js  services/**/*.service.js services/**/**/*.service.js",
     "start": "moleculer-runner services/*.service.js  services/**/*.service.js services/**/**/*.service.js",
     "cli": "moleculer connect NATS",
