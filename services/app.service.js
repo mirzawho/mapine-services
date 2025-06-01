@@ -27,12 +27,12 @@ module.exports = {
 					let url_feedback = null;
 					let url_update = null;
 
-					if(ctx.meta.favor == 'myket') {
+					if(ctx.meta.flavor == 'myket') {
 						url_feedback = `myket://comment?id=${ctx.meta.app}&version=${ctx.meta.version}`;
 						url_update = `myket://check-update?id=${ctx.meta.app}`;
 					}
 
-					if(ctx.meta.favor == 'cafebazaar') {
+					if(ctx.meta.flavor == 'cafebazaar') {
 						url_feedback = `bazaar://details?id=${ctx.meta.app}&version=${ctx.meta.version}`;
 						url_update = `bazaar://details?id=${ctx.meta.app}`;
 					}
