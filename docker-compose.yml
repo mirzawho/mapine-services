@@ -1,0 +1,7 @@
+services:
+  mapine:
+    build: .
+    env_file: .env
+    restart: always
+    volumes:
+      - ./volume:/app/volume
