@@ -1,7 +1,7 @@
 "use strict";
 
 const handshake = require('../app/handshake.json');
-const { helper } = require('../shared');
+const { helper, telebot } = require('../shared');
 
 /**
  * @typedef {import('moleculer').ServiceSchema} ServiceSchema Moleculer's Service Schema
@@ -36,6 +36,10 @@ module.exports = {
 						url_feedback = `bazaar://details?id=${ctx.meta.app}&version=${ctx.meta.version}`;
 						url_update = `bazaar://details?id=${ctx.meta.app}`;
 					}
+
+					telebot.send(
+						`New application opener\nFlavor: ${ctx.meta.flavor}\nVersion: ${ctx.meta.version}\nApp: ${ctx.meta.app}`
+					);
 	
 					return {
 						status: 200,
