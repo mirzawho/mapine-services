@@ -38,7 +38,7 @@ module.exports = {
 					}
 
 					telebot.send(
-						`New application opener\nFlavor: ${ctx.meta.flavor}\nVersion: ${ctx.meta.version}\nApp: ${ctx.meta.app}`
+						`New application opener\nFlavor: ${ctx.meta.flavor}\nVersion: ${ctx.meta.version}\nApp: ${ctx.meta.app}\n#${ctx.meta.app.split('.').join('_')}_${ctx.meta.version.split('.').join('_')}_${ctx.meta.flavor}`
 					);
 	
 					return {
