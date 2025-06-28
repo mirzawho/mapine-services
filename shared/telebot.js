@@ -1,18 +1,20 @@
+const axios = require('axios');
+
 module.exports = {
     async send(message) {
-        const telegramApiUrl = `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`;
-
         try {
-            await fetch(telegramApiUrl, {
+            const options = {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    chat_id: process.env.TELEGRAM_CHAT_ID,
-                    text: message,
-                }),
-            });
+                url: 'https://telebot.sayheymirza.workers.dev/api/v1/send-message',
+                headers: { 'Content-Type': 'application/json' },
+                data: {
+                    'chat_id': process.env.TELEGRAM_CHAT_ID,
+                    'token': process.env.TELEGRAM_BOT_TOKEN,
+                    'message': message,
+                }
+            };
+
+            return axios.request(options);
         } catch (error) {
             console.error('Failed to send Telegram message:', error);
         }

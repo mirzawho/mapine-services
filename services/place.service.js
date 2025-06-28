@@ -1,6 +1,6 @@
 "use strict";
 
-const axios = require('axios');
+const { functions } = require('../shared');
 
 /**
  * @typedef {import('moleculer').ServiceSchema} ServiceSchema Moleculer's Service Schema
@@ -32,22 +32,10 @@ module.exports = {
 				try {
 					const { address, city } = ctx.params;
 
-					const result = await axios({
-						url: 'https://api.ohmyapi.com/v1/call/map.reverse.fromAddress',
-						headers: {
-							'x-api-key': process.env['OHMYAPI_API_KEY'],
-							'x-cache': true
-						},
-						data: {
-							language: 'فارسی',
-							country: 'ایران',
-							city,
-							address,
-						}
-					});
+					const result = await functions.fromAddress(address, city);
 
-					if (result.status == 200 && result.data['ok'] && result.data['locations']) {
-						return result.data;
+					if (result.status == 200 && result['locations']) {
+						return result;
 					}
 
 					return {
@@ -94,39 +82,26 @@ module.exports = {
 					const { lat, lon, zoom, category } = ctx.params;
 
 					const [resultMapLocationSearch, resultMapReverseFromLatLng] = await Promise.all([
-						axios({
-							url: 'https://api.ohmyapi.com/v1/call/map.location.search',
-							headers: {
-								'x-api-key': process.env['OHMYAPI_API_KEY']
-							},
-							data: {
-								category,
-								lat: lon,
-								lon: lat,
-								zoom,
-							}
-						}),
-						axios({
-							url: 'https://api.ohmyapi.com/v1/call/map.reverse.fromLatLng',
-							headers: {
-								'x-api-key': process.env['OHMYAPI_API_KEY'],
-								'x-cache': true
-							},
-							data: {
-								language: 'فارسی',
-								lat,
-								lng: lon,
-							}
-						}),
+						functions.search(
+							lon,
+							lat,
+							zoom,
+							category
+						),
+						functions.fromLatLng(
+							lat,
+							lon
+						),
 					]);
 
+					console.log(resultMapLocationSearch);
 
-					if (resultMapLocationSearch.status == 200 && resultMapLocationSearch.data['ok'] && resultMapLocationSearch.data['places']) {
+					if (resultMapLocationSearch.status == 200 && resultMapLocationSearch['places']) {
 						return {
 							status: 200,
-							meta: resultMapLocationSearch.data['meta'],
-							places: resultMapLocationSearch.data['places'].map((item) => ({ id: item.id, ...item.data })),
-							address: resultMapReverseFromLatLng.data['address'] || null
+							meta: resultMapLocationSearch['meta'],
+							places: resultMapLocationSearch['places'].map((item) => ({ id: item.id, ...item })),
+							address: resultMapReverseFromLatLng['address'] || null
 						}
 					}
 
