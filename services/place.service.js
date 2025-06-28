@@ -100,7 +100,7 @@ module.exports = {
 						return {
 							status: 200,
 							meta: resultMapLocationSearch['meta'],
-							places: resultMapLocationSearch['places'].map((item) => ({ id: item.id, ...item })),
+							places: resultMapLocationSearch['places'].map((item) => ({ id: item.id, ...item['data'] })),
 							address: resultMapReverseFromLatLng['address'] || null
 						}
 					}
