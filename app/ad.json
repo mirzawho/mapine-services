@@ -1,12 +1,11 @@
 [
     {
         "component": "ad@v1",
-        "cities": ["قزوین"],
-        "title": "استخدام کارشناس فروش در قزوین",
-        "subtitle": "شرکت معتبر در زمینه فروش تجهیزات صنعتی",
-        "button": "ثبت نام",
-        "url": "https://google.com?q=استخدام+کارشناس+فروش+در+قزوین",
-        "logo": "https://picsum.photos/200",
-        "background": "https://picsum.photos/300/200"
-    }   
+        "cities": [],
+        "title": "آدامس کست",
+        "subtitle": "پادکست رو با هوش مصنوعی مثل آدامس بجو",
+        "button": "شنونده شوید",
+        "url": "https://adamscast.ir?utm_source=mapine",
+        "logo": "https://adamscast.ir/logo.png"
+    }
 ]

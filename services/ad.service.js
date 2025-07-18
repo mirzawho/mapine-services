@@ -1,6 +1,5 @@
 "use strict";
 
-const axios = require('axios');
 const ad = require('../app/ad.json');
 
 /**
