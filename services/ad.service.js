@@ -44,18 +44,24 @@ module.exports = {
 
 							return {
 								status: 200,
+								meta: {},
 								ad: randomAd
 							};
 						}
 
 						return {
 							status: 404,
-							message: 'AD_NOT_FOUND'
+							message: 'AD_NOT_FOUND',
+							type,
 						};
 					}
 
 					if (type == 'city' && hasCity) {
-						const ads = ad.filter((item) => item.cities.includes(city));
+						var ads = ad.filter((item) => item.cities.includes(city));
+
+						if(ads.length == 0) {
+							ads = ad.filter((item) => item.cities.length == 0);
+						}
 
 						// random ad
 						if (ads.length > 0) {
@@ -63,13 +69,15 @@ module.exports = {
 
 							return {
 								status: 200,
+								meta: {},
 								ad: randomAd
 							};
 						}
 
 						return {
 							status: 404,
-							message: 'AD_NOT_FOUND'
+							message: 'AD_NOT_FOUND',
+							type,
 						};
 					}
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const uuid = require('uuid');
+const path = require('path');
 
 const app = express();
 
@@ -10,6 +11,8 @@ app.use(
 	})
 );
 app.use(express.json({limit: '2mb'}));
+
+app.use('/public', express.static(path.join(__dirname, '..' , 'public')));
 
 app.use((req, res, next) => {
 	req.meta = {

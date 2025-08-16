@@ -1,11 +1,12 @@
 [
     {
-        "component": "ad@v1",
+        "version": 2,
         "cities": [],
         "title": "آدامس کست",
-        "subtitle": "پادکست رو با هوش مصنوعی مثل آدامس بجو",
+        "subtitle": "پادکست رو مثل آدامس بجو",
         "button": "شنونده شوید",
         "url": "https://adamscast.ir?utm_source=mapine",
-        "logo": "https://adamscast.ir/logo.png"
+        "logo": "https://adamscast.ir/logo.png",
+        "place": "bellow-search-bar"
     }
 ]

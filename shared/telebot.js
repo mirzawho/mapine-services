@@ -14,9 +14,9 @@ module.exports = {
                 }
             };
 
-            return axios.request(options);
+            return await axios.request(options);
         } catch (error) {
-            console.error('Failed to send Telegram message:', error);
+            console.error('Failed to send Telegram message');
         }
     },
 }

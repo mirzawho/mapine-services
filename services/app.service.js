@@ -26,6 +26,7 @@ module.exports = {
 
 					let url_feedback = null;
 					let url_update = null;
+					let url_place_share = 'https://www.google.com/maps/search/?api=1&query=LAT,LON';
 
 					if (ctx.meta.flavor == 'myket') {
 						url_feedback = `myket://comment?id=${ctx.meta.app}&version=${ctx.meta.version}`;
@@ -43,12 +44,14 @@ module.exports = {
 
 					return {
 						status: 200,
+						meta: {},
 						data: {
 							...handshake,
-							isDeprecated: userVersion < deprecatedVersion,
-							isUpdateAvailable: userVersion < latestVersion,
+							[userVersion < 222 ? 'isDeprecated' : 'is_deprecated']: userVersion < deprecatedVersion,
+							[userVersion < 222 ? 'isUpdateAvailable' : 'is_update_available']: userVersion < latestVersion,
 							url_feedback,
 							url_update,
+							url_place_share,
 						},
 					}
 				} catch (error) {

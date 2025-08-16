@@ -38,6 +38,9 @@
     "express": "^4.21.2",
     "lodash": "^4.17.21",
     "moleculer": "^0.14.26",
+    "mongoose": "^8.17.1",
+    "osm-pbf-parser": "^2.3.0",
+    "osm-pbf-parser-node": "^1.1.4",
     "uuid": "^11.1.0"
   },
   "engines": {

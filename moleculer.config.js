@@ -1,6 +1,9 @@
 "use strict";
 
+
 require('dotenv/config');
+
+const { mongoose } = require('./shared');
 
 /**
  * Moleculer ServiceBroker configuration file
@@ -208,7 +211,7 @@ module.exports = {
 
 	// Called after broker started.
 	async started(broker) {
-
+		mongoose.connect();
 	},
 
 	// Called after broker stopped.
