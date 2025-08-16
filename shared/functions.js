@@ -1,5 +1,7 @@
 const axios = require('axios');
 
+const { NOMINATIM_URL } = process.env;
+
 module.exports = {
     async fromLatLng(lat, lng, zoom = 15, language = 'فارسی') {
         try {
@@ -12,7 +14,7 @@ module.exports = {
             }
 
             // Use Nominatim API (OpenStreetMap) for reverse geocoding - Free service
-            const url = `http://172.28.0.20:8080/reverse?format=json&lat=${lat}&lon=${lng}&zoom=${zoom}&addressdetails=1&accept-language=${lang}`;
+            const url = `${NOMINATIM_URL}/reverse?format=json&lat=${lat}&lon=${lng}&zoom=${zoom}&addressdetails=1&accept-language=${lang}`;
 
             const response = await axios.get(url, {
                 headers: {
@@ -89,7 +91,7 @@ module.exports = {
             let addr = [country ?? '', city ?? '', address].filter(Boolean).join(', ').trim();
 
             // Use Nominatim API for forward geocoding - Free service
-            const url = `http://172.28.0.20:8080/search?format=json&q=${encodeURIComponent(addr)}&limit=${limit}&addressdetails=1&accept-language=${lang}`;
+            const url = `${NOMINATIM_URL}/search?format=json&q=${encodeURIComponent(addr)}&limit=${limit}&addressdetails=1&accept-language=${lang}`;
 
             const response = await axios.get(url, {
                 headers: {
@@ -175,7 +177,7 @@ module.exports = {
                     status: 400,
                     message: 'EMPTY_TOKENS'
                 }
-            }            
+            }
 
             const resultOfPlaces = await this.getPlacesFromPOITokens(
                 resultOfTokens,
@@ -259,7 +261,7 @@ module.exports = {
     },
     async getPOITokens({ zoom, lat, lon, category }) {
         try {
-            const url = `https://search.raah.ir/v4/bundle-search/?camera=${lat},${lon}&format=json&slug=${category}&zoom=${zoom}`;            
+            const url = `https://search.raah.ir/v4/bundle-search/?camera=${lat},${lon}&format=json&slug=${category}&zoom=${zoom}`;
 
             const result = await axios.get(url);
 
