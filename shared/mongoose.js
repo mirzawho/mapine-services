@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const models = require('./mongoose.model')
 
 const {
     MONGO_USERNAME,
@@ -42,4 +43,5 @@ module.exports = {
     schema,
     collection,
     mongoose,
+    models: models
 };

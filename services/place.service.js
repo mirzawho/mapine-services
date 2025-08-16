@@ -170,7 +170,7 @@ module.exports = {
 			try {
 				const distance = this.altitude(lat, zoom);
 
-				const result = await mongoose.collection('place').find({
+				const result = await mongoose.models.place.find({
 					category,
 					location: {
 						$near: {
@@ -219,7 +219,7 @@ module.exports = {
 					var lat = item.geometry.lon;
 					var lon = item.geometry.lat;
 
-					var one = await mongoose.collection('place').findOne({
+					var one = await mongoose.models.place.findOne({
 						lat,
 						lon
 					});
@@ -258,7 +258,7 @@ module.exports = {
 							};
 						}
 
-						await mongoose.collection('place').insertOne(output);
+						await mongoose.models.place.insertOne(output);
 
 						saved++;
 					} catch (error) {
