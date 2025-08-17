@@ -3,6 +3,5 @@
     "version_deprecated": "2.0.0",
     "url_map": "https://map.doting.ir/osm_bright/{z}/{x}/{y}.png",
     "url_form_place": "https://survey.porsline.ir/s/kZcggify",
-    "url_form_ad": "https://survey.porsline.ir/s/bFw0ufy7",
-    "url_share": "https://khodmirza.ir"
+    "url_form_ad": "https://survey.porsline.ir/s/bFw0ufy7"
 }
