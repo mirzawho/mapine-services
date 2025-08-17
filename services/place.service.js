@@ -16,6 +16,46 @@ module.exports = {
 	 * Actions
 	 */
 	actions: {
+		reverse: {
+			visibility: 'published',
+			params: {
+				lat: {
+					type: 'number',
+					convert: true
+				},
+				lon: {
+					type: 'number',
+					convert: true
+				},
+			},
+			async handler(ctx) {
+				try {
+					const result = await functions.fromLatLng(ctx.params.lat, ctx.params.lon, 17);
+
+					if (result.status == 200) {
+						return {
+							status: 200,
+							data: {
+								address: result.address.address.replace(`${result.address.postcode},`, '').trim(),
+								neighbourhood: result.address.neighbourhood,
+								city: result.address.city?.replace('شهر', '').trim() ?? null,
+								county: result.address.county?.replace('شهرستان', '').trim() ?? null,
+								state: result.address.state?.replace('استان', '').trim() ?? null,
+								country: result.address.country,
+							},
+						}
+					}
+
+					return {
+						status: 400,
+					}
+				} catch (error) {
+					return {
+						status: 500
+					};
+				}
+			}
+		},
 		search: {
 			visibility: 'published',
 			params: {
@@ -229,7 +269,7 @@ module.exports = {
 					}
 
 					try {
-						var result = await functions.fromLatLng(lat, lon, 16);
+						var result = await functions.fromLatLng(lat, lon, 17);
 
 						var output = {
 							osm_id: item.id || item.osm_id,
