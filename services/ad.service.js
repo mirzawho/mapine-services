@@ -29,8 +29,20 @@ module.exports = {
 					default: null
 				}
 			},
+			cache: {
+				enabled: true,
+				keys: ['type', 'city'],
+				ttl: 60 * 5
+			},
 			async handler(ctx) {
 				try {
+					if(ad.length == 0) {
+						return {
+							status: 404,
+							message: 'NO_AD'
+						}
+					}
+
 					const { type, city } = ctx.params;
 
 					let hasCity = city != null && city.length != 0;
