@@ -165,8 +165,9 @@ func TestRaahDiagnosticsAreDocumentedAsProtectedOptInHandlers(t *testing.T) {
 		if operation["tags"].([]string)[0] != "Raah / Balad Provider" {
 			t.Errorf("%s has tags %v", tc.path, operation["tags"])
 		}
-		if _, hasSecurity := operation["security"]; hasSecurity {
-			t.Errorf("%s should not declare bearer security", tc.path)
+		security, hasSecurity := operation["security"].([]any)
+		if !hasSecurity || len(security) != 0 {
+			t.Errorf("%s should explicitly declare that no authentication is required", tc.path)
 		}
 		if operation["responses"].(map[string]any)["404"] == nil {
 			t.Errorf("%s must document disabled response", tc.path)

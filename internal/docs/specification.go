@@ -269,6 +269,7 @@ func raahTokensOperation() map[string]any {
 			"summary":     "Discover Raah POI tokens",
 			"operationId": "raahDiscoverTokens",
 			"description": "Local Mapine diagnostic endpoint (not an upstream Raah URL). Mapine accepts standard `lat` and `lon` parameters; at the provider boundary the Raah adapter constructs `camera={lon},{lat}`. For example, lat=35.6892 and lon=51.389 are sent as camera=51.389,35.6892. The adapter also adds `format=json`, `slug={category}`, and `zoom={zoom}`. The raw provider JSON and its `poi-tokens` array are returned. The endpoint is disabled unless `DEBUG=true`, requires no authentication, and only starts when provider URLs use the trusted HTTPS Raah hosts. Uses the provider timeout, response cap, and `POI_MIN_INTERVAL` rate spacing.",
+			"security":    []any{},
 			"parameters": []any{
 				diagnosticQueryParameter("lat", "number", true, -90, 90, 35.6892),
 				diagnosticQueryParameter("lon", "number", true, -180, 180, 51.389),
@@ -292,6 +293,7 @@ func raahDetailsOperation() map[string]any {
 			"summary":     "Fetch Raah POI details",
 			"operationId": "raahFetchDetails",
 			"description": "Local Mapine diagnostic endpoint (not an upstream Raah contract). Accepts up to 50 provider tokens and calls the existing Go adapter's `GET https://poi.raah.ir/web/v4/preview-bulk/{comma-separated-tokens}`. The upstream response is returned raw for inspection. Tokens must come from a trusted source; commas and path separators are rejected. This endpoint does not persist POIs. Disabled unless `DEBUG=true`; no authentication is required. Configured provider timeout, 8 MiB upstream response cap, and shared `POI_MIN_INTERVAL` apply.",
+			"security":    []any{},
 			"requestBody": map[string]any{
 				"required": true,
 				"content": map[string]any{"application/json": map[string]any{
@@ -317,6 +319,7 @@ func raahSearchOperation() map[string]any {
 			"summary":     "Run the complete Raah POI workflow",
 			"operationId": "raahCompleteSearch",
 			"description": "Local read-only diagnostic that runs token discovery, then the provider's 50-token-batched details requests, and returns each raw upstream response beside the current Go `place.find` normalization preview. It does not call geocoding, write coverage, or persist data. A successful empty token array returns HTTP 200 with no details requests. Provider failures return HTTP 502 with partial stage data where available. Disabled unless `DEBUG=true`; no authentication is required. Uses the provider timeout, response cap, retry policy, and `POI_MIN_INTERVAL`.",
+			"security":    []any{},
 			"parameters": []any{
 				diagnosticQueryParameter("lat", "number", true, -90, 90, 35.6892),
 				diagnosticQueryParameter("lon", "number", true, -180, 180, 51.389),
@@ -344,7 +347,7 @@ func diagnosticQueryParameter(name, typ string, required bool, min, max, example
 func diagnosticResponse(description string, schema any, exampleName string) map[string]any {
 	examples := map[string]any{
 		"sourceDerivedTokens":  example("Synthetic source-derived shape; not a live capture. Mapine lat=35.6892 and lon=51.389 become Raah camera=51.389,35.6892.", map[string]any{"ok": true, "upstream": map[string]any{"method": "GET", "url": "https://search.raah.ir/v4/bundle-search/?camera=51.389%2C35.6892&format=json&slug=public-bathroom&zoom=15", "status_code": 200}, "raw_response": map[string]any{"poi-tokens": []string{"fixture-token-1"}}, "poi_tokens": []string{"fixture-token-1"}}),
-		"sourceDerivedDetails": example("Synthetic source-derived shape; token is a placeholder, not a live capture", map[string]any{"ok": true, "upstream": map[string]any{"method": "GET", "url": "https://poi.raah.ir/web/v4/preview-bulk/TOKEN_1", "status_code": 200}, "raw_response": map[string]any{"items": []any{map[string]any{"token": "TOKEN_1", "geometry": map[string]any{"coordinates": []float64{35.6892, 51.389}}, "name": "Fixture POI"}}}}),
+		"sourceDerivedDetails": example("Synthetic source-derived shape; token is a placeholder, not a live capture", map[string]any{"ok": true, "upstream": map[string]any{"method": "GET", "url": "https://poi.raah.ir/web/v4/preview-bulk/TOKEN_1", "status_code": 200}, "raw_response": map[string]any{"items": []any{map[string]any{"token": "TOKEN_1", "geometry": map[string]any{"coordinates": []float64{51.389, 35.6892}}, "name": "Fixture POI"}}}, "upstream_requests": []any{map[string]any{"url": "https://poi.raah.ir/web/v4/preview-bulk/TOKEN_1", "status_code": 200, "raw_response": map[string]any{"items": []any{map[string]any{"token": "TOKEN_1", "geometry": map[string]any{"coordinates": []float64{51.389, 35.6892}}, "name": "Fixture POI"}}}}}}),
 		"sourceDerivedSearch":  example("Synthetic source-derived shapes; not a live capture. Mapine lat=35.6892 and lon=51.389 become Raah camera=51.389,35.6892.", map[string]any{"ok": true, "token_discovery": map[string]any{"method": "GET", "url": "https://search.raah.ir/v4/bundle-search/?camera=51.389%2C35.6892&format=json&slug=public-bathroom&zoom=15", "status_code": 200, "raw_response": map[string]any{"poi-tokens": []string{"fixture-token-1"}}, "poi_tokens": []string{"fixture-token-1"}}, "detail_requests": []any{}, "normalized_places": []any{}, "persistence": map[string]any{"performed": false}}),
 	}
 	return map[string]any{
@@ -860,7 +863,7 @@ func schemaComponents() map[string]any {
 			"type": "object", "required": []string{"ok", "upstream", "poi_tokens"},
 			"properties": map[string]any{
 				"ok": map[string]any{"type": "boolean"}, "upstream": refSchema("RaahDiagnosticUpstream"),
-				"raw_response": refSchema("RaahRawResponse"),
+				"raw_response": refSchema("RaahTokenDiscoveryResponse"),
 				"poi_tokens":   map[string]any{"type": "array", "items": refSchema("RaahPOIToken")},
 				"error":        map[string]any{"type": "string"},
 			}, "additionalProperties": true,
@@ -870,7 +873,7 @@ func schemaComponents() map[string]any {
 			"properties": map[string]any{
 				"ok":           map[string]any{"type": "boolean"},
 				"upstream":     refSchema("RaahDiagnosticUpstream"),
-				"raw_response": refSchema("RaahRawResponse"),
+				"raw_response": refSchema("RaahPOIDetailsResponse"),
 				"upstream_requests": map[string]any{"type": "array", "items": objectSchema([]string{"url", "status_code", "raw_response"}, map[string]any{
 					"url": map[string]any{"type": "string", "format": "uri"}, "status_code": map[string]any{"type": "integer"},
 					"raw_response": refSchema("RaahRawResponse"),
