@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "token": "fixture-token-1",
+      "geometry": {
+        "coordinates": [
+          51.372901,
+          35.693915
+        ]
+      },
+      "name": "Synthetic bathroom",
+      "address": "Mock response only",
+      "thumbnail": null,
+      "images": [
+        {
+          "full": "https://example.invalid/fixture-image.jpg"
+        }
+      ],
+      "telephone": [],
+      "rating": {
+        "score": 4.5,
+        "count": 2
+      }
+    }
+  ]
+}

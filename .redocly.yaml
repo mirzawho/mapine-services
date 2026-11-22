@@ -1,0 +1,6 @@
+extends:
+  - recommended
+rules:
+  # The repository does not declare a software license; do not guess one in
+  # public API metadata solely to silence this style rule.
+  info-license: off

@@ -1,0 +1,30 @@
+{
+  "status": 200,
+  "meta": {
+    "offline": false,
+    "total": 1
+  },
+  "places": [
+    {
+      "osm_id": "poi",
+      "geometry": {
+        "lat": 35,
+        "lon": 51
+      },
+      "distance": 0,
+      "distance_unit": "km",
+      "category": "mosque",
+      "name": "mosque",
+      "city": null,
+      "province": null,
+      "gallery": [],
+      "telephone": null,
+      "rating": {
+        "score": 4,
+        "count": 2
+      }
+    }
+  ],
+  "address": null,
+  "ok": true
+}

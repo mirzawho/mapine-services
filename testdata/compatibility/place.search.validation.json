@@ -1,0 +1,12 @@
+{
+  "ok": false,
+  "message": "VALIDATION_FAILED",
+  "error": "BAD_PARAMS",
+  "params": [
+    {
+      "message": "The 'address' field length must be at least 3 characters long.",
+      "param": "address",
+      "type": "stringMin"
+    }
+  ]
+}

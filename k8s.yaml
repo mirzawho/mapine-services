@@ -1,101 +1,119 @@
-#########################################################
-# Common Environment variables ConfigMap
-#########################################################
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mapine-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 5Gi
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: common-env
+  name: mapine-config
 data:
-  NAMESPACE: ""
-  LOGLEVEL: info
-  SERVICEDIR: services
-  TRANSPORTER: nats://nats:4222
-  
-  
-  
-  
-  
-  
-  CACHER: Memory
-  
-  
-
-
+  HTTP_HOST: "0.0.0.0"
+  HTTP_PORT: "3000"
+  SQLITE_PATH: "/data/mapine.db"
+  NOMINATIM_URL: ""
+  NOMINATIM_MIN_INTERVAL: "1s"
+  NOMINATIM_USER_AGENT: "OhMyAPI-Services/1.0.0"
+  POI_PROVIDER: "raah"
+  POI_SEARCH_URL: "https://search.raah.ir"
+  POI_DETAILS_URL: "https://poi.raah.ir"
+  POI_MIN_INTERVAL: "250ms"
+  POI_CACHE_TTL: "24h"
+  GEOCODE_CACHE_TTL: "168h"
+  HTTP_REQUEST_TIMEOUT: "10s"
+  PROVIDER_MAX_RETRIES: "2"
+  LOG_LEVEL: "info"
+  TELEGRAM_URL: "https://telebot.sayheymirza.workers.dev/api/v1/send-message"
 ---
-#########################################################
-# Greeter service
-#########################################################
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: greeter
+  name: mapine
 spec:
-  selector:
-    matchLabels:
-      app: greeter
-  replicas: 2
-  template:
-    metadata:
-      labels:
-        app: greeter
-    spec:
-      containers:
-      - name: greeter
-        image: doting
-        imagePullPolicy: IfNotPresent
-        envFrom:
-        - configMapRef:
-            name: common-env
-        env:
-          - name: SERVICES
-            value: greeter
-
-
----
-#########################################################
-# NATS transporter service
-#########################################################
-apiVersion: v1
-kind: Service
-metadata:
-  name: nats
-spec:
-  selector:
-    app: nats
-  ports:
-  - port: 4222
-    name: nats
-    targetPort: 4222
-
----
-#########################################################
-# NATS transporter
-#########################################################
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nats
-spec:
-  selector:
-    matchLabels:
-      app: nats
   replicas: 1
   strategy:
     type: Recreate
+  selector:
+    matchLabels:
+      app: mapine
   template:
     metadata:
       labels:
-        app: nats
+        app: mapine
     spec:
+      terminationGracePeriodSeconds: 15
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-      - name: nats
-        image: nats
-        ports:
-        - containerPort: 4222
-          name: nats
-
-
-
-
-
-
+        - name: mapine
+          image: ghcr.io/mirzawho/mapine-services:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: mapine-config
+          env:
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mapine-secret
+                  key: TELEGRAM_BOT_TOKEN
+                  optional: true
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mapine-secret
+                  key: TELEGRAM_CHAT_ID
+                  optional: true
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet: { path: /readyz, port: 3000 }
+          startupProbe:
+            httpGet: { path: /readyz, port: 3000 }
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: 3000 }
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { cpu: "1", memory: 512Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: mapine-data
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mapine
+spec:
+  type: LoadBalancer
+  selector:
+    app: mapine
+  ports:
+    - port: 3000
+      targetPort: 3000

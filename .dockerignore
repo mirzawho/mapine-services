@@ -1,9 +1,10 @@
-docker-compose.env
-docker-compose.yml
-Dockerfile
-node_modules
-test
-.vscode
-
+.git
+.env*
+volume
+data
+backups
+testdata
+.agents
+/bin
 *.db
 *.db-journal

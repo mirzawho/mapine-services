@@ -1,0 +1,38 @@
+services:
+  mapine:
+    image: ${MAPINE_IMAGE:-ghcr.io/mirzawho/mapine-services:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${MAPINE_PORT:-3000}:3000"
+    environment:
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: "3000"
+      SQLITE_PATH: /data/mapine.db
+      POI_PROVIDER: ${POI_PROVIDER:-raah}
+      POI_SEARCH_URL: ${POI_SEARCH_URL:-https://search.raah.ir}
+      POI_DETAILS_URL: ${POI_DETAILS_URL:-https://poi.raah.ir}
+      NOMINATIM_MIN_INTERVAL: ${NOMINATIM_MIN_INTERVAL:-1s}
+      NOMINATIM_USER_AGENT: ${NOMINATIM_USER_AGENT:-OhMyAPI-Services/1.0.0}
+      HTTP_REQUEST_TIMEOUT: ${HTTP_REQUEST_TIMEOUT:-10s}
+      PROVIDER_MAX_RETRIES: ${PROVIDER_MAX_RETRIES:-2}
+      POI_MIN_INTERVAL: ${POI_MIN_INTERVAL:-250ms}
+      POI_CACHE_TTL: ${POI_CACHE_TTL:-24h}
+      DEBUG: ${DEBUG:-false}
+      DEBUG_DIR: ${DEBUG_DIR:-}
+      GEOCODE_CACHE_TTL: ${GEOCODE_CACHE_TTL:-168h}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NOMINATIM_URL: ${NOMINATIM_URL:-}
+      TELEGRAM_URL: ${TELEGRAM_URL:-https://telebot.sayheymirza.workers.dev/api/v1/send-message}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+    volumes:
+      - mapine-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+volumes:
+  mapine-data:

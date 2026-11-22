@@ -1,0 +1,17 @@
+{
+  "token_discovery": {
+    "method": "GET",
+    "base_url": "https://search.raah.ir/v4/bundle-search/",
+    "query": {
+      "camera": "35.689200,51.389000",
+      "format": "json",
+      "slug": "public-bathroom",
+      "zoom": "15"
+    }
+  },
+  "poi_details": {
+    "method": "GET",
+    "base_url": "https://poi.raah.ir/web/v4/preview-bulk/",
+    "tokens_segment": "fixture-token-1"
+  }
+}
