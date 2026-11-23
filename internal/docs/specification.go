@@ -257,6 +257,7 @@ func Specification() map[string]any {
 				"When DEBUG=true, JSON responses from /v1/call include request_id matching the .id response header. place.find also captures Raah search and details HTTP requests/responses in DEBUG_DIR.",
 				"Raah diagnostic routes are not upstream Raah contracts. They return 404 unless DEBUG=true; no authentication is required. Only the fixed HTTPS Raah search and POI hosts are allowed.",
 				"Coordinate conventions: Mapine accepts `lat`/`lon` as latitude/longitude; the Raah search adapter sends `camera` as longitude,latitude; Raah details use GeoJSON `[longitude,latitude]`, normalized once to `geometry.lat`/`geometry.lon`; SQLite stores latitude/longitude and its R-Tree indexes X=longitude, Y=latitude.",
+				"The code-level `replacePosition` switch controls whether `place.find` response geometry values are swapped. Its default is true; it does not change request parsing, canonical storage, R-Tree indexing, or distance calculations.",
 			},
 		},
 	}

@@ -25,6 +25,50 @@ func TestDistanceKnownPoints(t *testing.T) {
 	}
 }
 
+func TestCachedPlacePositionReplacementDoesNotChangeDistanceOrStorage(t *testing.T) {
+	db := openTestDB(t)
+	lat, lon := 35.693915, 51.372901
+	if _, err := db.Exec(`INSERT INTO places(source,source_id,category,latitude,longitude,name)
+		VALUES('balad.ir','poi','public-bathroom',?,?,?)`, lat, lon, "Test POI"); err != nil {
+		t.Fatal(err)
+	}
+	s := &server{db: db, replacePosition: true, poiTTL: time.Hour}
+	x, y := tileAt(35.6892, 51.389, 15)
+	if err := s.markCoverage(context.Background(), "public-bathroom", 15, x, y); err != nil {
+		t.Fatal(err)
+	}
+	result, status := s.find(context.Background(), map[string]any{
+		"lat": 35.6892, "lon": 51.389, "zoom": 15, "category": "public-bathroom",
+		"gps_lat": 35.6892, "gps_lon": 51.389, "force": false,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("find status=%d result=%v", status, result)
+	}
+	response := result.(map[string]any)
+	place := response["places"].([]map[string]any)[0]
+	geometry := place["geometry"].(map[string]any)
+	if geometry["lat"] != lon || geometry["lon"] != lat {
+		t.Fatalf("replacePosition response geometry=%v, want swapped output", geometry)
+	}
+	if place["distance"] != 1.55 || place["distance_unit"] != "km" {
+		t.Fatalf("replacement changed canonical distance: %v", place)
+	}
+	var storedLat, storedLon float64
+	if err := db.QueryRow(`SELECT latitude,longitude FROM places WHERE source_id='poi'`).Scan(&storedLat, &storedLon); err != nil {
+		t.Fatal(err)
+	}
+	if storedLat != lat || storedLon != lon {
+		t.Fatalf("replacePosition modified persisted coordinate: %f,%f", storedLat, storedLon)
+	}
+	fresh := freshPlaceWithPosition(ProviderPlace{
+		ID: "poi", Category: "public-bathroom", Coordinate: Coordinate{Latitude: lat, Longitude: lon},
+	}, 35.6892, 51.389, true)
+	freshGeometry := fresh["geometry"].(map[string]any)
+	if freshGeometry["lat"] != lon || freshGeometry["lon"] != lat || fresh["distance"] != 1.55 {
+		t.Fatalf("fresh result replacement/distance mismatch: %v", fresh)
+	}
+}
+
 func TestDebugResponseRequestIDIsOptIn(t *testing.T) {
 	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if requestIDFromContext(r.Context()) == "" {

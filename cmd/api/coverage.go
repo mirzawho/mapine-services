@@ -190,11 +190,19 @@ func dbValue(v any) any {
 }
 
 func freshPlace(p ProviderPlace, gpsLat, gpsLon float64) map[string]any {
+	return freshPlaceWithPosition(p, gpsLat, gpsLon, false)
+}
+
+func freshPlaceWithPosition(p ProviderPlace, gpsLat, gpsLon float64, replacePosition bool) map[string]any {
 	d := 0.0
 	if gpsLat != 0 && gpsLon != 0 {
 		d = math.Round(distanceKM(p.Latitude, p.Longitude, gpsLat, gpsLon)*100) / 100
 	}
 	slog.Debug("place.distance_calculation", "latitude", p.Latitude, "longitude", p.Longitude, "gps_latitude", gpsLat, "gps_longitude", gpsLon, "distance_km", d)
+	responseLat, responseLon := p.Latitude, p.Longitude
+	if replacePosition {
+		responseLat, responseLon = responseLon, responseLat
+	}
 	score, _ := numberDefault(p.Rating["score"], 0)
 	count, _ := numberDefault(p.Rating["count"], 0)
 	rating := map[string]any{"score": score, "count": count}
@@ -202,7 +210,7 @@ func freshPlace(p ProviderPlace, gpsLat, gpsLon float64) map[string]any {
 	if gallery == nil {
 		gallery = []any{}
 	}
-	out := map[string]any{"osm_id": p.ID, "geometry": map[string]any{"lat": p.Latitude, "lon": p.Longitude}, "distance": d, "distance_unit": "km", "category": p.Category, "city": nil, "province": nil, "gallery": gallery, "telephone": p.Telephone, "rating": rating}
+	out := map[string]any{"osm_id": p.ID, "geometry": map[string]any{"lat": responseLat, "lon": responseLon}, "distance": d, "distance_unit": "km", "category": p.Category, "city": nil, "province": nil, "gallery": gallery, "telephone": p.Telephone, "rating": rating}
 	if p.NameSet || p.Name != nil {
 		out["name"] = p.Name
 	}

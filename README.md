@@ -130,6 +130,12 @@ Production provider URLs must remain the trusted HTTPS Raah hosts.
 See [`docs/providers/raah-balad.md`](docs/providers/raah-balad.md) for source
 analysis, coordinate caveats, endpoint contracts, and manual Scalar workflows.
 
+The code-level `replacePosition` boolean in `cmd/api/main.go` defaults to
+`true`, swapping only `place.find` response `geometry.lat`/`geometry.lon`.
+Change it to `false` to disable the response swap. Request coordinates,
+canonical internal coordinates, SQLite/R-Tree storage, and distance
+calculations are unchanged.
+
 Raah requests use connection reuse, timeouts, context cancellation, bounded
 retries with jitter/`Retry-After`, token batching and request coalescing.
 Nominatim is serialized at a configurable minimum interval (default one

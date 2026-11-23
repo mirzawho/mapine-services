@@ -47,7 +47,12 @@ type server struct {
 	geoFlights      map[string]*geoFlight
 	geoSlots        chan struct{}
 	raahDiagnostics *raahDiagnostics
+	replacePosition bool
 }
+
+// replacePosition swaps response geometry fields when enabled. Keep the
+// canonical coordinates used for storage and distance calculations unchanged.
+var replacePosition = true
 
 var notificationSlots = make(chan struct{}, 16)
 
@@ -99,7 +104,8 @@ func main() {
 		db: db, poi: poiProvider,
 		geo: NewNominatimProvider(cfg.NominatimURL, cfg.HTTPTimeout, cfg.NominatimUserAgent, cfg.NominatimMinInterval), poiTTL: cfg.POICacheTTL, geoTTL: cfg.GeocodeCacheTTL, nodeID: cfg.NodeID,
 		telegramURL: cfg.TelegramURL, telegramToken: cfg.TelegramToken, telegramChatID: cfg.TelegramChatID,
-		flights: map[string]*poiFlight{}, geoFlights: map[string]*geoFlight{}, poiSlots: make(chan struct{}, 8), geoSlots: make(chan struct{}, 4),
+		replacePosition: replacePosition,
+		flights:         map[string]*poiFlight{}, geoFlights: map[string]*geoFlight{}, poiSlots: make(chan struct{}, 8), geoSlots: make(chan struct{}, 4),
 	}
 	if cfg.Debug {
 		if provider, ok := poiProvider.(*RaahProvider); ok {
@@ -333,7 +339,7 @@ func (s *server) find(ctx context.Context, p map[string]any) (any, int) {
 				slog.Info("POI refresh completed", "category", category, "count", len(provided))
 				places := make([]map[string]any, 0, len(provided))
 				for _, v := range provided {
-					places = append(places, freshPlace(v, gpsLat, gpsLon))
+					places = append(places, freshPlaceWithPosition(v, gpsLat, gpsLon, s.replacePosition))
 				}
 				sortPlaces(places)
 				address := s.reverseAddress(ctx, lat, lon, 15)
@@ -371,7 +377,11 @@ func (s *server) find(ctx context.Context, p map[string]any) (any, int) {
 		if name == nil {
 			name = ""
 		}
-		place := map[string]any{"id": id, "geometry": map[string]any{"lat": v.lat, "lon": v.lon}, "distance": d, "distance_unit": "km", "category": category, "name": name}
+		responseLat, responseLon := v.lat, v.lon
+		if s.replacePosition {
+			responseLat, responseLon = responseLon, responseLat
+		}
+		place := map[string]any{"id": id, "geometry": map[string]any{"lat": responseLat, "lon": responseLon}, "distance": d, "distance_unit": "km", "category": category, "name": name}
 		if v.source == "balad.ir" && v.sourceID != "" {
 			place["osm_id"] = v.sourceID
 		}
