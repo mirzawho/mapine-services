@@ -33,6 +33,18 @@ func TestRaahURLsAreFixedAndIgnoreEnvironment(t *testing.T) {
 	}
 }
 
+func TestVolumeDirectoryForContainerAPIPath(t *testing.T) {
+	if got := volumeDirectoryForExecutable("/bin/mapine/api"); got != "/volume" {
+		t.Fatalf("container volume directory=%q, want /volume", got)
+	}
+	if got := volumeDirectoryForExecutable("/mapine"); got != "/volume" {
+		t.Fatalf("legacy container volume directory=%q, want /volume", got)
+	}
+	if got := volumeDirectoryForExecutable("/workspace/bin/api"); got != "/workspace/bin/volume" {
+		t.Fatalf("local volume directory=%q, want /workspace/bin/volume", got)
+	}
+}
+
 func TestDebugDiagnosticsDisabledByDefault(t *testing.T) {
 	cleanConfigEnv(t)
 	cfg, err := loadConfig()

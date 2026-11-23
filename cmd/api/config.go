@@ -127,16 +127,21 @@ func loadConfig() (Config, error) {
 }
 
 // volumeDirectory keeps persistent files beside the native binary, while the
-// container image's binary at /mapine uses the mounted /volume directory.
+// container image's API binary uses the mounted /volume directory.
 func volumeDirectory() string {
 	executable, err := os.Executable()
-	if err == nil && filepath.Clean(executable) == "/mapine" {
+	if err != nil {
+		return filepath.Join("bin", "volume")
+	}
+	return volumeDirectoryForExecutable(executable)
+}
+
+func volumeDirectoryForExecutable(executable string) string {
+	switch filepath.Clean(executable) {
+	case "/mapine", "/bin/mapine/api":
 		return "/volume"
 	}
-	if err == nil {
-		return filepath.Join(filepath.Dir(executable), "volume")
-	}
-	return filepath.Join("bin", "volume")
+	return filepath.Join(filepath.Dir(executable), "volume")
 }
 
 func validateTrustedRaahURL(name, rawURL, allowedHost string) error {

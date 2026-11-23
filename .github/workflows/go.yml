@@ -28,7 +28,7 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Build binaries
-        run: go build ./cmd/api ./cmd/openapi ./cmd/migrate ./cmd/backup
+        run: go build ./cmd/api ./cmd/openapi ./cmd/migrate ./cmd/backup ./cmd/osm
       - name: Validate OpenAPI
         run: |
           go run ./cmd/openapi > /tmp/mapine-openapi.json

@@ -33,9 +33,24 @@ make build-osm
 
 The default snapshot directory is `./data/osm`. Set `OSM_DATA_DIR` to change
 it. The default SQLite path, `./bin/volume/data/mapine.db`, matches the API
-binary's current data-volume location. Use `--db` to point to another existing
-Mapine database. The CLI refuses to create a new database; initialize it with
-the existing API or Mapine migration process first.
+binary's current data-volume location. Set `OSM_DB_PATH` or use `--db` to point
+to another existing Mapine database. The CLI refuses to create a new database;
+initialize it with the existing API or Mapine migration process first.
+
+The published container image includes the API, OSM CLI, and other `make build`
+executables under `/bin/mapine/`. The API entrypoint is `/bin/mapine/api`; the
+container's OSM defaults use the persistent `/volume` mount:
+
+```sh
+kubectl -n mapine exec -it deploy/mapine -c mapine -- /bin/mapine/osm --help
+kubectl -n mapine exec deploy/mapine -c mapine -- /bin/mapine/osm download iran
+kubectl -n mapine exec deploy/mapine -c mapine -- /bin/mapine/osm import public-restroom
+```
+
+The container runs as UID 65532, so `/volume` must be writable by that user.
+GitHub Actions builds and publishes the Docker image on pushes to `main`;
+restart the deployment after the image publish completes to pull the updated
+image.
 
 ## Download
 
