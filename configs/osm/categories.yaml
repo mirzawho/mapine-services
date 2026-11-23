@@ -1,0 +1,35 @@
+version: 1
+
+categories:
+  public-restroom:
+    database_category: public-bathroom
+    description: Public restroom and toilet locations
+    match:
+      any:
+        - all:
+            amenity: toilets
+    exclude:
+      any:
+        - all:
+            access: private
+        - all:
+            access: "no"
+    defaults:
+      name: "سرویس بهداشتی"
+
+  mosque:
+    database_category: mosque
+    description: Mosque locations
+    match:
+      any:
+        - all:
+            amenity: place_of_worship
+            religion: muslim
+        - all:
+            building: mosque
+    exclude:
+      any:
+        - all:
+            access: private
+    defaults:
+      name: "مسجد"

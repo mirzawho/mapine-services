@@ -7,7 +7,7 @@ TAG ?= local
 BIN_DIR ?= bin
 COMPOSE_FILE ?= docker-compose.yaml
 
-.PHONY: help fmt test race vet build run openapi validate-openapi docker-build docker-run docker-push \
+.PHONY: help fmt test race vet build build-osm run openapi validate-openapi docker-build docker-run docker-push \
 	compose-up compose-down compose-logs k8s-apply migrate backup
 
 help:
@@ -17,7 +17,8 @@ help:
 		'  test         Run tests' \
 		'  race         Run race-enabled tests' \
 		'  vet          Run go vet' \
-		'  build        Build API, OpenAPI, migration, and backup binaries into bin/' \
+		'  build        Build API, OSM, OpenAPI, migration, and backup binaries into bin/' \
+		'  build-osm    Build the standalone OSM downloader/importer into bin/osm' \
 		'  run          Run the API locally' \
 		'  openapi      Write the generated OpenAPI JSON to bin/openapi.json' \
 		'  validate-openapi Validate OpenAPI and run documentation contract tests' \
@@ -44,14 +45,25 @@ vet:
 	$(GO) vet ./...
 
 build:
-	mkdir -p $(BIN_DIR)
+	mkdir -p $(BIN_DIR)/volume/app $(BIN_DIR)/volume/public $(BIN_DIR)/volume/data
+	@for f in app/*.json; do \
+		target="$(BIN_DIR)/volume/$$f"; \
+		if [ ! -e "$$target" ]; then cp "$$f" "$$target"; fi; \
+	done
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN_DIR)/mapine ./cmd/api
+	cp $(BIN_DIR)/mapine $(BIN_DIR)/api
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN_DIR)/mapine-openapi ./cmd/openapi
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN_DIR)/mapine-migrate ./cmd/migrate
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN_DIR)/mapine-backup ./cmd/backup
+	$(MAKE) build-osm
+
+build-osm:
+	mkdir -p $(BIN_DIR)
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(BIN_DIR)/osm ./cmd/osm
 
 run:
-	$(GO) run ./cmd/api
+	$(MAKE) build
+	./$(BIN_DIR)/api
 
 openapi:
 	mkdir -p $(BIN_DIR)
@@ -66,8 +78,7 @@ docker-build:
 
 docker-run:
 	$(DOCKER) run --rm --name mapine -p 3000:3000 \
-		-e SQLITE_PATH=/data/mapine.db \
-		-v mapine-data:/data \
+		-v mapine-data:/volume \
 		$(IMAGE):$(TAG)
 
 docker-push:

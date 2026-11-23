@@ -40,7 +40,7 @@ var documentedActions = []actionDoc{
 		tag:     "Places",
 		summary: "Find nearby places",
 		description: "Finds nearby public bathrooms or mosques. The request location selects a zoom-dependent search radius. " +
-			"When `force` is omitted, the service refreshes from the configured POI provider by default; `force=true` or `force=1` also refreshes, while explicitly passing `force=false` or `force=0` allows fresh tile coverage to be used. If the provider fails, stored local places are returned. " +
+			"When `force` is omitted, the service refreshes from the configured POI provider by default; `force=true` or `force=1` also refreshes. Explicitly passing `force=false` or `force=0` is cache-only and reads SQLite without calling the provider, even when tile coverage is missing or expired. If a forced provider refresh fails, stored local places are returned. " +
 			"`meta.offline` is false after a successful provider refresh and true when results are served from the local SQLite cache. " +
 			"If both optional GPS coordinates are non-zero, `distance` is measured from them and rounded to two decimal places; otherwise it is 0. " +
 			"The distance unit is `km`. A separate reverse-geocoding lookup supplies `address`; it is null when unavailable. " +
@@ -53,7 +53,7 @@ var documentedActions = []actionDoc{
 			{name: "category", description: "Place category to search.", required: true, query: enumQuery("public-bathroom", "mosque"), body: enumBody("public-bathroom", "mosque"), example: "public-bathroom"},
 			{name: "gps_lat", description: "Optional GPS latitude used as the distance origin. Defaults to 0; distance is calculated only when both GPS coordinates are non-zero.", query: numberQueryDefault(-90, 90, 0), body: numberBodyDefault(-90, 90, 0), example: 35.6892},
 			{name: "gps_lon", description: "Optional GPS longitude used as the distance origin. Defaults to 0; distance is calculated only when both GPS coordinates are non-zero.", query: numberQueryDefault(-180, 180, 0), body: numberBodyDefault(-180, 180, 0), example: 51.3890},
-			{name: "force", description: "Optional refresh switch. Defaults to true when omitted. Use `false` or `0` to allow fresh tile coverage to be used; `true` or `1` forces a provider refresh.", query: enumQuery("true", "1", "false", "0"), body: map[string]any{"oneOf": []any{map[string]any{"type": "boolean"}, enumBody("true", "1", "false", "0")}}, example: "true"},
+			{name: "force", description: "Optional provider refresh switch. Defaults to true when omitted. Use `false` or `0` for a SQLite-only lookup; `true` or `1` refreshes from the provider.", query: enumQuery("true", "1", "false", "0"), body: map[string]any{"oneOf": []any{map[string]any{"type": "boolean"}, enumBody("true", "1", "false", "0")}}, example: "true"},
 		},
 		bodyExample:    map[string]any{"lat": 35.6892, "lon": 51.3890, "zoom": 15, "category": "public-bathroom", "gps_lat": 35.6892, "gps_lon": 51.3890, "force": true},
 		responseSchema: "PlaceFindResponse",
@@ -187,25 +187,6 @@ var documentedActions = []actionDoc{
 		},
 		validatesParams: true,
 	},
-	{
-		name:           "http.info",
-		tag:            "System",
-		summary:        "Get service information",
-		description:    "Returns the fixed service namespace and this process's configured node identifier. No authentication is required. Extra query or JSON body values are ignored by this action.",
-		bodyExample:    map[string]any{},
-		responseSchema: "SystemInfoResponse",
-		responseExamples: map[string]any{
-			"serviceInfo": example("Service information", map[string]any{"status": 200, "ok": true, "info": map[string]any{"namespace": "mapine", "node": "mapine"}}),
-		},
-	},
-	{
-		name:           "http.actions",
-		tag:            "System",
-		summary:        "List action metadata",
-		description:    "Returns the Go service's configured action inventory and parameter metadata. Inventory entries are descriptive and do not by themselves guarantee a matching public `/v1/call/` route; this reference documents only actions dispatched by the public gateway. No authentication is required. Extra query or JSON body values are ignored by this action.",
-		bodyExample:    map[string]any{},
-		responseSchema: "SystemActionsResponse",
-	},
 }
 
 var documentedHTTPMethods = []string{"get", "post"}
@@ -231,14 +212,13 @@ func Specification() map[string]any {
 		"info": map[string]any{
 			"title":       "Mapine API",
 			"version":     "1.0.0",
-			"description": "Mapine location services API. The backend uses action-based HTTP endpoints and preserves the existing mobile request/response contract. Published actions are unauthenticated. Query parameters and JSON body properties are merged, with JSON body properties taking precedence. Scalar's Test Request sends a real request to this service only after the user explicitly clicks Execute; place lookups and geocoding may call configured external providers, and handshakes may queue the configured app-open notification.",
+			"description": "Mapine location services API. The backend uses action-based HTTP endpoints and preserves the existing mobile request/response contract. Published actions are unauthenticated. Query parameters and JSON body properties are merged, with JSON body properties taking precedence. Scalar's Test Request sends a real request to this service only after the user explicitly clicks Execute; place lookups and geocoding may call configured external providers, and handshakes may queue the configured app-open notification. For offline OSM snapshot preparation, see the [OpenStreetMap importer guide](https://github.com/mirzawho/mapine-services/blob/main/docs/osm-import.md).",
 		},
 		"servers": []any{map[string]any{"url": ".", "description": "Same origin as this documentation (supports a reverse-proxy path prefix)."}},
 		"tags": []any{
 			map[string]any{"name": "Places", "description": "Nearby place discovery and Persian address geocoding."},
 			map[string]any{"name": "Application", "description": "Mobile application handshake and configuration."},
 			map[string]any{"name": "Advertisements", "description": "City-aware advertisement selection."},
-			map[string]any{"name": "System", "description": "Public service information and action inventory."},
 			map[string]any{"name": "Raah / Balad Provider", "description": "Debug-mode diagnostic tools for the configured Raah/Balad POI provider. Disabled by default."},
 		},
 		"paths": paths,
@@ -759,30 +739,7 @@ func schemaComponents() map[string]any {
 			"type":    map[string]any{"type": "string", "enum": []string{"any", "city"}},
 		}),
 		"AdvertisementResponse": map[string]any{"oneOf": []any{refSchema("AdvertisementSuccess"), refSchema("AdvertisementFailure")}},
-		"SystemInfoResponse": objectSchema([]string{"status", "ok", "info"}, map[string]any{
-			"status": map[string]any{"type": "integer", "const": 200},
-			"ok":     map[string]any{"type": "boolean", "const": true},
-			"info": objectSchema([]string{"namespace", "node"}, map[string]any{
-				"namespace": map[string]any{"type": "string", "const": "mapine"},
-				"node":      map[string]any{"type": "string", "description": "Configured NODE_ID or the process hostname."},
-			}),
-		}),
-		"ActionParameterRule": map[string]any{"type": "object", "additionalProperties": true},
-		"ActionInventoryEntry": objectSchema([]string{"action", "service", "auth", "cache", "visibility", "nodes", "params"}, map[string]any{
-			"action":     map[string]any{"type": "string", "description": "Action identifier in the current service inventory."},
-			"service":    map[string]any{"type": "string"},
-			"auth":       map[string]any{"type": "boolean"},
-			"cache":      map[string]any{"type": "boolean"},
-			"visibility": map[string]any{"type": "string"},
-			"nodes":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"params":     map[string]any{"type": "object", "additionalProperties": refSchema("ActionParameterRule")},
-		}),
-		"SystemActionsResponse": objectSchema([]string{"status", "ok", "actions"}, map[string]any{
-			"status":  map[string]any{"type": "integer", "const": 200},
-			"ok":      map[string]any{"type": "boolean", "const": true},
-			"actions": map[string]any{"type": "array", "items": refSchema("ActionInventoryEntry")},
-		}),
-		"RaahPOIToken": map[string]any{"type": "string", "description": "Opaque provider token. Placeholder values in examples are not real provider identifiers."},
+		"RaahPOIToken":          map[string]any{"type": "string", "description": "Opaque provider token. Placeholder values in examples are not real provider identifiers."},
 		"RaahRawResponse": map[string]any{
 			"description": "Raw upstream response body. Successful JSON is embedded as JSON; non-JSON error bodies are returned as text.",
 			"oneOf": []any{

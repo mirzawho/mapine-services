@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -17,6 +18,7 @@ import (
 	"strconv"
 	"strings"
 
+	osmschema "github.com/mirzawho/mapine-services/internal/osm/schema"
 	_ "modernc.org/sqlite"
 )
 
@@ -548,7 +550,10 @@ func initialize(db *sql.DB) error {
 		}
 	}
 	_, err = db.Exec(`INSERT OR IGNORE INTO schema_migrations(version) VALUES(1),(2),(3)`)
-	return err
+	if err != nil {
+		return err
+	}
+	return osmschema.Apply(context.Background(), db)
 }
 func stableID(source, sourceID, category string) string {
 	sum := sha256.Sum256([]byte(source + "\x00" + sourceID + "\x00" + category))

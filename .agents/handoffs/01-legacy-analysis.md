@@ -9,8 +9,7 @@ GitHub workflow. No test directory or production fixture was present.
 Gateway route is `server.all("/v1/call/:action")`, so all HTTP methods match;
 the new implementation currently accepts GET/POST/PUT/PATCH/DELETE. Published
 actions: `place.find`, `place.search`, `place.reverse`, `app.handshake`,
-`ad.one`, `http.info`, `http.actions`. The dynamic action listing formats
-visibility and schemas. `auth.authenticate` is marked Moleculer `public`, but
+`ad.one`. `auth.authenticate` is marked Moleculer `public`, but
 not `published`, so the gateway rejects it; `api.v1.token.authenticate` is
 referenced but no token service exists in this checkout. `greeter` has no
 actions. Internal `$` actions return 406 `BAD_ACTION`.
@@ -32,8 +31,6 @@ actions. Internal `$` actions return 406 `BAD_ACTION`.
   deprecation/update keys, feedback/update/share URLs, and map share URL.
 * `ad.one`: type enum any/city default any; city optional null. Empty ad file
   returns status 404/message NO_AD. Present-day `ad.json` is empty.
-* `http.info`: status plus broker namespace/node. `http.actions`: status and
-  action descriptions.
 
 Gateway merges query then body (body wins). `Authorization` is parsed as
 Bearer or Basic username:password; `x-api-key` or query `apiKey` and
@@ -54,7 +51,8 @@ Balad token to `osm_id`, transforms geometry arrays inconsistently, reverse
 geocodes each POI, and suppresses per-item errors. POI search calls Raah
 token-search then bulk preview, expects GeoJSON coordinates and fields. Nominatim
 reverse/forward use Persian `fa`, Iran/city query defaults, field normalization.
-Telegram Worker notification is fired for handshake, failures suppressed.
+Telegram notification is fired asynchronously for handshake; delivery failures
+are logged and do not affect the handshake response.
 
 Static configuration: app/ad.json, cities.json, handshake.json, page.json.
 Startup connects to Mongo and exits on failure. Legacy deployment includes
@@ -68,6 +66,5 @@ No recorded responses, user file, MongoDB documents, API keys, running legacy
 instance, provider terms evidence, or production samples were available.
 Coordinate semantics and legacy IDs cannot safely be migrated without sample
 documents. The handshake version converter is unusual positional decimal
-weighting; kept conceptually. `http.actions` runtime listing and response types
-may differ in a single-process replacement. Raah usage/cache redistribution
+weighting; kept conceptually. Raah usage/cache redistribution
 terms remain unverified. `auth` action is not gateway exposed.

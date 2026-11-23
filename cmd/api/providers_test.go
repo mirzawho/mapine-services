@@ -377,6 +377,63 @@ func TestPlaceFindDefaultsToProviderRefreshButAllowsExplicitCacheOnly(t *testing
 	}
 }
 
+func TestPlaceFindForceFalseReadsImportedOSMWithoutCoverageOrProvider(t *testing.T) {
+	var upstreamRequests atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamRequests.Add(1)
+		http.Error(w, "provider should not be called for force=false", http.StatusInternalServerError)
+	}))
+	defer upstream.Close()
+
+	db := openTestDB(t)
+	if _, err := db.Exec(`INSERT INTO places(source,source_id,category,name,latitude,longitude)
+		VALUES('osm','node/12345','public-bathroom','Imported OSM restroom',35.6892,51.389)`); err != nil {
+		t.Fatal(err)
+	}
+	// Deliberately leave the coverage table empty. A preloaded OSM database
+	// should still be queried locally when the caller requests force=false.
+	var coverageCount int
+	if err := db.QueryRow(`SELECT count(*) FROM coverage`).Scan(&coverageCount); err != nil {
+		t.Fatal(err)
+	}
+	if coverageCount != 0 {
+		t.Fatalf("test database unexpectedly has %d coverage rows", coverageCount)
+	}
+
+	s := &server{
+		db:     db,
+		poi:    NewRaahProvider(upstream.URL, upstream.URL, time.Second, 0, 0),
+		geo:    NewNominatimProvider("", time.Second, "test-agent", 0),
+		poiTTL: time.Hour, flights: map[string]*poiFlight{},
+	}
+	handler := metadata(http.HandlerFunc(s.call))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet,
+		"/v1/call/place.find?lat=35.6892&lon=51.389&zoom=15&category=public-bathroom&force=false", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("force=false status=%d body=%s", response.Code, response.Body)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	meta := body["meta"].(map[string]any)
+	places := body["places"].([]any)
+	if meta["offline"] != true || meta["total"] != float64(1) || len(places) != 1 {
+		t.Fatalf("force=false did not return the stored OSM row: %v", body)
+	}
+	place := places[0].(map[string]any)
+	if place["name"] != "Imported OSM restroom" {
+		t.Fatalf("returned place=%v", place)
+	}
+	if _, hasProviderID := place["osm_id"]; hasProviderID {
+		t.Fatalf("native OSM row unexpectedly carries a Balad/Raah id: %v", place)
+	}
+	if requests := upstreamRequests.Load(); requests != 0 {
+		t.Fatalf("force=false called the provider %d times", requests)
+	}
+}
+
 func TestDebugPlaceFindWithNoProviderTokensStillWritesBothFiles(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write([]byte(`{"poi-tokens":[]}`))

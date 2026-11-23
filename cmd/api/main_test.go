@@ -79,7 +79,7 @@ func TestDebugResponseRequestIDIsOptIn(t *testing.T) {
 	for _, debug := range []bool{false, true} {
 		handler := metadata(next, debug)
 		response := httptest.NewRecorder()
-		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/call/http.info", nil))
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/call/place.find", nil))
 		var body map[string]any
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 			t.Fatal(err)
@@ -383,20 +383,12 @@ func TestDocsRoutesDoNotChangeGatewayOrMetadataContracts(t *testing.T) {
 		t.Fatal("OpenAPI route should retain global response metadata headers")
 	}
 
-	infoResponse := httptest.NewRecorder()
-	handler.ServeHTTP(infoResponse, httptest.NewRequest(http.MethodGet, "/v1/call/http.info", nil))
-	if infoResponse.Code != http.StatusOK {
-		t.Fatalf("existing http.info HTTP status changed: %d", infoResponse.Code)
-	}
-	var info map[string]any
-	if err := json.Unmarshal(infoResponse.Body.Bytes(), &info); err != nil {
-		t.Fatal(err)
-	}
-	if info["status"] != float64(200) || info["ok"] != true || info["meta"] != nil {
-		t.Fatalf("existing http.info response shape changed: %v", info)
-	}
-	if info["info"].(map[string]any)["node"] != "test-node" {
-		t.Fatalf("http.info node changed: %v", info["info"])
+	for _, action := range []string{"http.info", "http.actions"} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/call/"+action, nil))
+		if response.Code != http.StatusNotFound {
+			t.Errorf("removed action %s returned HTTP %d, want 404", action, response.Code)
+		}
 	}
 
 	validation := httptest.NewRecorder()

@@ -16,7 +16,6 @@ The legacy route shape and published action names are retained:
 | `place.reverse` | Persian reverse geocoding through Nominatim |
 | `app.handshake` | App/page/city configuration and update metadata |
 | `ad.one` | Select ad by type/city from `app/ad.json` |
-| `http.info`, `http.actions` | Runtime information and action inventory |
 
 All use `/v1/call/:action`. Query and JSON body params are merged (body wins).
 The server adds `ok`, `meta.took`, `.id`, and `.took`; validation remains a
@@ -47,8 +46,7 @@ currently unauthenticated. Each action's OpenAPI metadata is maintained in
 `internal/docs/specification.go`; when changing a public handler, update the
 same file's methods, parameter constraints/defaults, response schemas, and
 examples, then extend the contract tests. Add only actions genuinely dispatched
-by the public gateway. `http.actions` is documented as an inventory response,
-not treated as proof that every inventory entry is a callable public route.
+by the public gateway.
 
 The docs page does not execute requests on load. Scalar's **Test Request**
 control sends a real same-origin request only after the user clicks Execute.
@@ -78,8 +76,6 @@ cp .env.example .env
 set -a; . ./.env; set +a
 make test
 make build
-mkdir -p data
-SQLITE_PATH=./data/mapine.db \
 NOMINATIM_URL=https://nominatim.openstreetmap.org \
 make run
 ```
@@ -93,14 +89,23 @@ geocoding returns the legacy failure response.
 
 See `.env.example`. Main settings:
 
-* `HTTP_HOST`, `HTTP_PORT`, `SQLITE_PATH`
-* `POI_PROVIDER` (`raah` or `disabled`), `POI_SEARCH_URL`, `POI_DETAILS_URL`, `PROVIDER_MAX_RETRIES`,
+* `HTTP_HOST`, `HTTP_PORT`
+* Raah POI endpoints are fixed in code; `PROVIDER_MAX_RETRIES`,
   `POI_MIN_INTERVAL`, `POI_CACHE_TTL`
 * `NOMINATIM_URL`, `NOMINATIM_USER_AGENT`, `NOMINATIM_MIN_INTERVAL`,
   `GEOCODE_CACHE_TTL`
-* `TELEGRAM_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+* `TELEGRAM_URL` (defaults to `https://api.telegram.org`),
+  `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_ENABLED`,
+  `TELEGRAM_TIMEOUT`, `TELEGRAM_MAX_RETRIES`
 * `LOG_LEVEL`, `NODE_ID`, `DEBUG` (`true` enables Raah request capture),
-  `DEBUG_DIR` (defaults to a `debug/` directory beside `SQLITE_PATH`)
+  `DEBUG_DIR` (defaults to `debug/` beside the SQLite database under `volume/data/`)
+
+Telegram handshake notifications use the official Bot API and post to
+`<TELEGRAM_URL>/bot<TOKEN>/sendMessage` with `chat_id` and `text` fields.
+`TELEGRAM_URL` defaults to `https://api.telegram.org` and can be changed to a
+custom Bot API-compatible base URL. Notifications can be disabled with
+`TELEGRAM_ENABLED=false`. Missing credentials leave the API running without
+sending notifications.
 
 For a no-results `place.find` investigation, set `DEBUG=true` and restart the
 service, then repeat the request. The backend appends correlated request/response
@@ -111,8 +116,8 @@ records to two valid JSON array files:
 
 Both files include the same `request_id` returned in the API JSON body while
 debug mode is enabled. Retries and detail batches are recorded as separate
-entries. By default, with `SQLITE_PATH=/data/mapine.db`, the files are written
-under `/data/debug/`; set `DEBUG_DIR` to choose another directory. Captures
+entries. By default, files are written under `volume/data/debug/`; set
+`DEBUG_DIR` to choose another directory. Captures
 include raw provider URLs, tokens, and response bodies—keep the files private
 and turn `DEBUG` off after troubleshooting.
 
@@ -193,6 +198,26 @@ documents. Review `places.ndjson.rejected.ndjson`; do not blindly import
 quarantined coordinate records. Compare counts and sample locations with the
 source before cutover.
 
+## Offline OpenStreetMap importer
+
+Build the standalone OSM data utility with `make build`, then download an Iran
+snapshot and inspect the editable category mappings:
+
+```sh
+./bin/osm download iran
+./bin/osm categories
+./bin/osm import public-restroom --dry-run
+./bin/osm import public-restroom
+```
+
+The importer streams matching OSM Nodes into the existing Mapine SQLite
+`places` table and R-Tree. The CLI name `public-restroom` maps to the existing
+API/database category `public-bathroom`; no mobile API contract is changed.
+See the [OSM importer guide](docs/osm-import.md) for configuration, progress,
+SQLite safety, coverage limits, troubleshooting, and OpenStreetMap licensing.
+The Scalar `/docs` page remains the API reference; the importer is a CLI and is
+not represented as an HTTP endpoint.
+
 ## Backup and restore
 
 Create a consistent online SQLite snapshot (includes committed WAL content):
@@ -205,7 +230,7 @@ go run ./cmd/migrate --destination ./backups/mapine-YYYY-MM-DD-HHMMSS.db --verif
 ```
 
 Restore by stopping the API, preserving the existing DB/WAL/SHM files, placing
-the verified snapshot at `SQLITE_PATH`, ensuring ownership/permissions, then
+the verified snapshot at `volume/data/mapine.db`, ensuring ownership/permissions, then
 starting and checking `/readyz`. Do not copy only the live main database file
 while WAL writes are active. Keep backups off the same volume and test restores.
 

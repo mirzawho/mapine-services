@@ -429,7 +429,7 @@ func NewNominatimProvider(base string, timeout time.Duration, userAgent string, 
 		timeout = 10 * time.Second
 	}
 	if userAgent == "" {
-		userAgent = "OhMyAPI-Services/1.0.0"
+		userAgent = defaultNominatimUserAgent
 	}
 	if minInterval < 0 {
 		minInterval = 0

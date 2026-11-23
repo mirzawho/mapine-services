@@ -9,31 +9,44 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/mirzawho/mapine-services/internal/notification/telegram"
 )
 
 type Config struct {
 	HTTPHost, HTTPPort, SQLitePath             string
+	VolumeDir                                  string
 	HTTPTimeout                                time.Duration
-	POIProvider                                string
-	POISearchURL, POIDetailsURL                string
 	POIMaxRetries                              int
 	POIMinInterval, POICacheTTL                time.Duration
 	NominatimURL, NominatimUserAgent           string
 	NominatimMinInterval, GeocodeCacheTTL      time.Duration
 	LogLevel, NodeID                           string
 	TelegramURL, TelegramToken, TelegramChatID string
+	TelegramEnabled                            bool
+	TelegramTimeout                            time.Duration
+	TelegramMaxRetries                         int
 	Debug                                      bool
 	DebugDir                                   string
 }
 
+const (
+	raahSearchURL             = "https://search.raah.ir"
+	raahDetailsURL            = "https://poi.raah.ir"
+	defaultNominatimUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
 func loadConfig() (Config, error) {
+	volumeDir := volumeDirectory()
 	c := Config{
-		HTTPHost: env("HTTP_HOST", "0.0.0.0"), HTTPPort: env("HTTP_PORT", env("PORT", "3000")), SQLitePath: env("SQLITE_PATH", "./data/mapine.db"),
-		POISearchURL: env("POI_SEARCH_URL", "https://search.raah.ir"), POIDetailsURL: env("POI_DETAILS_URL", "https://poi.raah.ir"), POIProvider: strings.ToLower(env("POI_PROVIDER", "raah")),
-		NominatimURL: strings.TrimRight(os.Getenv("NOMINATIM_URL"), "/"), NominatimUserAgent: env("NOMINATIM_USER_AGENT", "OhMyAPI-Services/1.0.0"),
+		HTTPHost: env("HTTP_HOST", "0.0.0.0"), HTTPPort: env("HTTP_PORT", env("PORT", "3000")), SQLitePath: filepath.Join(volumeDir, "data", "mapine.db"),
+		VolumeDir:    volumeDir,
+		NominatimURL: strings.TrimRight(os.Getenv("NOMINATIM_URL"), "/"), NominatimUserAgent: env("NOMINATIM_USER_AGENT", defaultNominatimUserAgent),
 		LogLevel: strings.ToLower(env("LOG_LEVEL", "info")), NodeID: env("NODE_ID", ""),
-		TelegramURL: env("TELEGRAM_URL", "https://telebot.sayheymirza.workers.dev/api/v1/send-message"), TelegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"), TelegramChatID: os.Getenv("TELEGRAM_CHAT_ID"),
-		Debug: strings.EqualFold(strings.TrimSpace(os.Getenv("DEBUG")), "true"),
+		TelegramURL:   env("TELEGRAM_URL", telegram.DirectURL),
+		TelegramToken: os.Getenv("TELEGRAM_BOT_TOKEN"), TelegramChatID: os.Getenv("TELEGRAM_CHAT_ID"),
+		TelegramEnabled: true,
+		Debug:           strings.EqualFold(strings.TrimSpace(os.Getenv("DEBUG")), "true"),
 	}
 	c.DebugDir = strings.TrimSpace(os.Getenv("DEBUG_DIR"))
 	if c.DebugDir == "" {
@@ -45,6 +58,16 @@ func loadConfig() (Config, error) {
 	}
 	if c.POICacheTTL, err = duration("POI_CACHE_TTL", "24h"); err != nil {
 		return c, err
+	}
+	if c.TelegramTimeout, err = time.ParseDuration(env("TELEGRAM_TIMEOUT", "5s")); err != nil || c.TelegramTimeout <= 0 {
+		return c, fmt.Errorf("TELEGRAM_TIMEOUT must be a valid positive duration")
+	}
+	telegramRetries := env("TELEGRAM_MAX_RETRIES", "0")
+	if c.TelegramMaxRetries, err = strconv.Atoi(telegramRetries); err != nil || c.TelegramMaxRetries < 0 || c.TelegramMaxRetries > 10 {
+		return c, fmt.Errorf("TELEGRAM_MAX_RETRIES must be an integer from 0 to 10")
+	}
+	if c.TelegramEnabled, err = strconv.ParseBool(env("TELEGRAM_ENABLED", "true")); err != nil {
+		return c, fmt.Errorf("TELEGRAM_ENABLED must be true or false")
 	}
 	if c.GeocodeCacheTTL, err = duration("GEOCODE_CACHE_TTL", "168h"); err != nil {
 		return c, err
@@ -63,30 +86,16 @@ func loadConfig() (Config, error) {
 	if e != nil || port < 1 || port > 65535 {
 		return c, fmt.Errorf("HTTP_PORT/PORT must be between 1 and 65535")
 	}
-	if c.SQLitePath == "" {
-		return c, fmt.Errorf("SQLITE_PATH cannot be empty")
-	}
 	switch c.LogLevel {
 	case "debug", "info", "warn", "error":
 	default:
 		return c, fmt.Errorf("LOG_LEVEL must be debug, info, warn, or error")
 	}
-	switch c.POIProvider {
-	case "raah":
-		for key, value := range map[string]string{"POI_SEARCH_URL": c.POISearchURL, "POI_DETAILS_URL": c.POIDetailsURL} {
-			if err = validateURL(key, value, false); err != nil {
-				return c, err
-			}
-		}
-	case "disabled":
-	default:
-		return c, fmt.Errorf("POI_PROVIDER must be raah or disabled")
-	}
-	if c.Debug && c.POIProvider == "raah" {
-		if err = validateTrustedRaahURL("POI_SEARCH_URL", c.POISearchURL, "search.raah.ir"); err != nil {
+	if c.Debug {
+		if err = validateTrustedRaahURL("Raah search URL", raahSearchURL, "search.raah.ir"); err != nil {
 			return c, err
 		}
-		if err = validateTrustedRaahURL("POI_DETAILS_URL", c.POIDetailsURL, "poi.raah.ir"); err != nil {
+		if err = validateTrustedRaahURL("Raah details URL", raahDetailsURL, "poi.raah.ir"); err != nil {
 			return c, err
 		}
 	}
@@ -95,10 +104,12 @@ func loadConfig() (Config, error) {
 			return c, err
 		}
 	}
-	if c.TelegramToken != "" && c.TelegramChatID != "" {
-		if err = validateURL("TELEGRAM_URL", c.TelegramURL, false); err != nil {
-			return c, err
-		}
+	if _, err = telegram.New(telegram.Config{
+		URL: c.TelegramURL, Token: c.TelegramToken,
+		ChatID: c.TelegramChatID, Enabled: c.TelegramEnabled,
+		Timeout: c.TelegramTimeout, MaxRetries: c.TelegramMaxRetries,
+	}); err != nil {
+		return c, err
 	}
 	if c.NodeID == "" {
 		c.NodeID, _ = os.Hostname()
@@ -113,6 +124,19 @@ func loadConfig() (Config, error) {
 		return c, fmt.Errorf("invalid HTTP listen address: %w", err)
 	}
 	return c, nil
+}
+
+// volumeDirectory keeps persistent files beside the native binary, while the
+// container image's binary at /mapine uses the mounted /volume directory.
+func volumeDirectory() string {
+	executable, err := os.Executable()
+	if err == nil && filepath.Clean(executable) == "/mapine" {
+		return "/volume"
+	}
+	if err == nil {
+		return filepath.Join(filepath.Dir(executable), "volume")
+	}
+	return filepath.Join("bin", "volume")
 }
 
 func validateTrustedRaahURL(name, rawURL, allowedHost string) error {

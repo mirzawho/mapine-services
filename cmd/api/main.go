@@ -27,19 +27,19 @@ import (
 	"unicode/utf16"
 
 	"github.com/mirzawho/mapine-services/internal/docs"
+	"github.com/mirzawho/mapine-services/internal/notification/telegram"
 	_ "modernc.org/sqlite"
 )
 
 type server struct {
 	db              *sql.DB
+	volumeDir       string
 	poi             POIProvider
 	geo             *NominatimProvider
 	poiTTL          time.Duration
 	geoTTL          time.Duration
 	nodeID          string
-	telegramURL     string
-	telegramToken   string
-	telegramChatID  string
+	telegram        telegram.Sender
 	flightsMu       sync.Mutex
 	flights         map[string]*poiFlight
 	poiSlots        chan struct{}
@@ -63,6 +63,15 @@ func main() {
 		os.Exit(1)
 	}
 	configureLogging(cfg.LogLevel)
+	telegramSender, err := telegram.New(telegram.Config{
+		URL: cfg.TelegramURL, Token: cfg.TelegramToken,
+		ChatID: cfg.TelegramChatID, Enabled: cfg.TelegramEnabled,
+		Timeout: cfg.TelegramTimeout, MaxRetries: cfg.TelegramMaxRetries,
+	})
+	if err != nil {
+		slog.Error("configure Telegram notifications", "error", err)
+		os.Exit(1)
+	}
 	path := cfg.SQLitePath
 	if err := os.MkdirAll(filepath.Dir(path), 0750); err != nil {
 		slog.Error("create data directory", "err", err)
@@ -92,18 +101,13 @@ func main() {
 		debugCapture = &poiDebugRecorder{dir: cfg.DebugDir}
 		slog.Warn("POI provider debug capture enabled; raw provider responses will be written to local files", "directory", cfg.DebugDir)
 	}
-	var poiProvider POIProvider
-	if cfg.POIProvider == "raah" {
-		provider := NewRaahProvider(cfg.POISearchURL, cfg.POIDetailsURL, cfg.HTTPTimeout, cfg.POIMaxRetries, cfg.POIMinInterval)
-		provider.debug = debugCapture
-		poiProvider = provider
-	} else {
-		slog.Info("POI provider disabled; serving persistent local places only")
-	}
+	provider := NewRaahProvider(raahSearchURL, raahDetailsURL, cfg.HTTPTimeout, cfg.POIMaxRetries, cfg.POIMinInterval)
+	provider.debug = debugCapture
+	var poiProvider POIProvider = provider
 	s := &server{
-		db: db, poi: poiProvider,
+		db: db, volumeDir: cfg.VolumeDir, poi: poiProvider,
 		geo: NewNominatimProvider(cfg.NominatimURL, cfg.HTTPTimeout, cfg.NominatimUserAgent, cfg.NominatimMinInterval), poiTTL: cfg.POICacheTTL, geoTTL: cfg.GeocodeCacheTTL, nodeID: cfg.NodeID,
-		telegramURL: cfg.TelegramURL, telegramToken: cfg.TelegramToken, telegramChatID: cfg.TelegramChatID,
+		telegram:        telegramSender,
 		replacePosition: replacePosition,
 		flights:         map[string]*poiFlight{}, geoFlights: map[string]*geoFlight{}, poiSlots: make(chan struct{}, 8), geoSlots: make(chan struct{}, 4),
 	}
@@ -148,7 +152,7 @@ func newRouter(s *server, db *sql.DB) *http.ServeMux {
 	registerRaahDiagnosticRoutes(mux, s.raahDiagnostics)
 	mux.HandleFunc("/v1/call/", s.call)
 	mux.HandleFunc("/public/", func(w http.ResponseWriter, r *http.Request) {
-		http.StripPrefix("/public/", http.FileServer(http.Dir("./public"))).ServeHTTP(w, r)
+		http.StripPrefix("/public/", http.FileServer(http.Dir(filepath.Join(s.volumeDir, "public")))).ServeHTTP(w, r)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -240,11 +244,7 @@ func (s *server) call(w http.ResponseWriter, r *http.Request) {
 	case "app.handshake":
 		result = s.handshake(r)
 	case "ad.one":
-		result, _ = adOne(p)
-	case "http.info":
-		result = map[string]any{"status": 200, "info": map[string]any{"namespace": "mapine", "node": s.nodeID}}
-	case "http.actions":
-		result = map[string]any{"status": 200, "actions": actionInventory(s.nodeID)}
+		result, _ = s.adOne(p)
 	default:
 		writeJSON(w, 404, map[string]any{"ok": false, "message": "ACTION_NOT_FOUND"})
 		return
@@ -316,14 +316,18 @@ func (s *server) find(ctx context.Context, p map[string]any) (any, int) {
 		force = forceValue == true || str(forceValue) == "true" || str(forceValue) == "1"
 	}
 	txX, txY := tileAt(lat, lon, int(zoom))
-	covered, cerr := s.coverageFresh(ctx, category, int(zoom), txX, txY)
-	if cerr != nil {
-		slog.Error("coverage lookup", "err", cerr)
+	if !force {
+		covered, err := s.coverageFresh(ctx, category, int(zoom), txX, txY)
+		if err != nil {
+			slog.Error("coverage lookup", "err", err)
+		}
+		slog.Debug("POI cache-only lookup", "category", category, "coverage_fresh", covered,
+			"zoom", int(zoom), "tile_x", txX, "tile_y", txY)
 	}
-	if covered && !force {
-		slog.Debug("POI coverage hit", "category", category, "zoom", int(zoom), "tile_x", txX, "tile_y", txY)
-	}
-	if !covered || force {
+	// force=false is a strict cache-only request. Coverage is useful for
+	// diagnostics, but a missing/expired coverage marker must not send the
+	// request to Balad/Raah when the caller explicitly asked for stored data.
+	if force {
 		slog.Debug("POI coverage refresh", "category", category, "zoom", int(zoom), "tile_x", txX, "tile_y", txY, "forced", force)
 		key := fmt.Sprintf("%s:%d:%d:%d", category, int(zoom), txX, txY)
 		center := tileCenter(txX, txY, int(zoom))
@@ -517,9 +521,9 @@ func (s *server) handshake(r *http.Request) any {
 	var h map[string]any
 	var page any
 	var cities any
-	loadJSON("app/handshake.json", &h)
-	loadJSON("app/page.json", &page)
-	loadJSON("app/cities.json", &cities)
+	loadJSON(filepath.Join(s.volumeDir, "app", "handshake.json"), &h)
+	loadJSON(filepath.Join(s.volumeDir, "app", "page.json"), &page)
+	loadJSON(filepath.Join(s.volumeDir, "app", "cities.json"), &cities)
 	ver := r.Header.Get("x-version")
 	latest := str(h["version_latest"])
 	dep := str(h["version_deprecated"])
@@ -557,46 +561,8 @@ func (s *server) handshake(r *http.Request) any {
 	s.notifyHandshake(r)
 	return map[string]any{"status": 200, "meta": map[string]any{}, "data": data}
 }
-func actionInventory(node string) []map[string]any {
-	stringParam := func(optional bool, def any) map[string]any {
-		m := map[string]any{"type": "string"}
-		if optional {
-			m["optional"] = true
-			m["default"] = def
-		}
-		return m
-	}
-	numberParam := func(optional bool, def any, min, max any) map[string]any {
-		m := map[string]any{"type": "number", "convert": true}
-		if optional {
-			m["optional"] = true
-			m["default"] = def
-		}
-		if min != nil {
-			m["min"] = min
-		}
-		if max != nil {
-			m["max"] = max
-		}
-		return m
-	}
-	enum := map[string]any{"type": "enum", "values": []string{"any", "city"}, "default": "any"}
-	placeFind := map[string]any{"lat": numberParam(false, nil, nil, nil), "lon": numberParam(false, nil, nil, nil), "zoom": numberParam(false, nil, 1, 21), "category": map[string]any{"type": "enum", "values": []string{"public-bathroom", "mosque"}}, "gps_lat": numberParam(true, 0, nil, nil), "gps_lon": numberParam(true, 0, nil, nil)}
-	authParams := map[string]any{"username": map[string]any{"type": "string", "min": 4, "max": 12}, "password": map[string]any{"type": "string", "min": 8, "max": 24}}
-	actions := []map[string]any{
-		{"action": "place.find", "service": "place", "auth": false, "cache": true, "visibility": "published", "nodes": []string{node}, "params": placeFind},
-		{"action": "place.search", "service": "place", "auth": false, "cache": false, "visibility": "published", "nodes": []string{node}, "params": map[string]any{"address": map[string]any{"type": "string", "min": 3}, "city": stringParam(true, nil)}},
-		{"action": "place.reverse", "service": "place", "auth": false, "cache": false, "visibility": "published", "nodes": []string{node}, "params": map[string]any{"lat": numberParam(false, nil, nil, nil), "lon": numberParam(false, nil, nil, nil)}},
-		{"action": "app.handshake", "service": "app", "auth": false, "cache": false, "visibility": "published", "nodes": []string{node}, "params": map[string]any{}},
-		{"action": "ad.one", "service": "ad", "auth": false, "cache": true, "visibility": "published", "nodes": []string{node}, "params": map[string]any{"type": enum, "city": stringParam(true, nil)}},
-		{"action": "http.info", "service": "http", "auth": false, "cache": false, "visibility": "published", "nodes": []string{node}, "params": map[string]any{}},
-		{"action": "http.actions", "service": "http", "auth": false, "cache": false, "visibility": "published", "nodes": []string{node}, "params": map[string]any{}},
-		{"action": "api.v1.auth.authenticate", "service": "api.v1.auth", "auth": false, "cache": true, "visibility": "public", "nodes": []string{node}, "params": authParams},
-	}
-	return actions
-}
 func (s *server) notifyHandshake(r *http.Request) {
-	if s.telegramToken == "" || s.telegramChatID == "" {
+	if s.telegram == nil {
 		return
 	}
 	flavor, version, app := r.Header.Get("x-flavor"), r.Header.Get("x-version"), r.Header.Get("x-app")
@@ -610,23 +576,16 @@ func (s *server) notifyHandshake(r *http.Request) {
 	}
 	go func() {
 		defer func() { <-notificationSlots }()
-		ctx, c := context.WithTimeout(context.Background(), 3*time.Second)
+		ctx, c := context.WithTimeout(context.Background(), 5*time.Second)
 		defer c()
-		b, _ := json.Marshal(map[string]string{"chat_id": s.telegramChatID, "token": s.telegramToken, "message": msg})
-		req, _ := http.NewRequestWithContext(ctx, "POST", s.telegramURL, strings.NewReader(string(b)))
-		req.Header.Set("Content-Type", "application/json")
-		client := http.Client{Timeout: 3 * time.Second}
-		resp, e := client.Do(req)
-		if e == nil {
-			resp.Body.Close()
-		} else {
-			slog.Warn("Telegram notification failed")
+		if err := s.telegram.Send(ctx, msg); err != nil {
+			slog.Warn("Telegram notification failed", "error", err)
 		}
 	}()
 }
-func adOne(p map[string]any) (any, int) {
+func (s *server) adOne(p map[string]any) (any, int) {
 	var ads []map[string]any
-	if err := loadJSONErr("app/ad.json", &ads); err != nil {
+	if err := loadJSONErr(filepath.Join(s.volumeDir, "app", "ad.json"), &ads); err != nil {
 		return map[string]any{"status": 500}, 200
 	}
 	if len(ads) == 0 {

@@ -10,7 +10,6 @@ also have focused tests.
 
 Executed Go tests pass, but this does **not** establish parity with a deployed
 Node/Moleculer instance. Remaining uncertainty: exact validator error wording,
-dynamic `http.actions` node/action metadata, status and omission details for
-unavailable provider payloads, production Mongo coordinate conventions, and
-historical response records. A staging differential run against the legacy
+status and omission details for unavailable provider payloads, production Mongo
+coordinate conventions, and historical response records. A staging differential run against the legacy
 server for all published actions and client versions is a release gate.

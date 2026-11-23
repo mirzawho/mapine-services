@@ -110,8 +110,6 @@ func TestOpenAPISpecListsOnlyPublicDispatchedActionsAndGetPostMethods(t *testing
 		"/v1/call/place.reverse",
 		"/v1/call/app.handshake",
 		"/v1/call/ad.one",
-		"/v1/call/http.info",
-		"/v1/call/http.actions",
 	}
 	if len(paths) != len(wantPaths)+3 {
 		t.Fatalf("documented %d paths, want %d public plus 3 diagnostics: %v", len(paths), len(wantPaths), paths)

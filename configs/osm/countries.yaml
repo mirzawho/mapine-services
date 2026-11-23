@@ -1,0 +1,6 @@
+version: 1
+
+countries:
+  iran:
+    url: https://download.geofabrik.de/asia/iran-latest.osm.pbf
+    filename: iran-latest.osm.pbf
